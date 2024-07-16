@@ -1,64 +1,93 @@
-document.addEventListener("DOMContentLoaded", function () {
-    const taskInputs = document.querySelectorAll(".task-input");
-    // Load tasks from localStorage
-    loadTasks();
-  
-    taskInputs.forEach((input) => {
-      input.addEventListener("keypress", function (e) {
-        if (e.key === "Enter" && input.value.trim() !== "") {
-          const taskText = input.value.trim();
-          const task = document.createElement("div");
-          task.classList.add("task");
-          task.textContent = taskText;
-  
-          const tasksContainer = input.previousElementSibling;
-          tasksContainer.appendChild(task);
-  
-          // Save tasks to localStorage
-          saveTasks();
-  
-          input.value = "";
-        }
-      });
-    });
-    // Function to save tasks to localStorage
-    function saveTasks() {
-      const columns = document.querySelectorAll(".column");
-      const data = {};
-  
-      columns.forEach((column) => {
-        const tasks = column.querySelectorAll(".task");
-        const tasksArray = [];
-        tasks.forEach((task) => {
-          tasksArray.push(task.textContent);
-        });
-        data[column.id] = tasksArray;
-      });
-  
-      localStorage.setItem("trelloCloneData", JSON.stringify(data));
-    }
-    // Function to load tasks from localStorage
-    function loadTasks() {
-      const data = JSON.parse(localStorage.getItem("trelloCloneData"));
-  
-      if (data) {
-        Object.keys(data).forEach((columnId) => {
-          const column = document.getElementById(columnId);
-          const tasksContainer = column.querySelector(".tasks");
-          data[columnId].forEach((taskText) => {
-            const task = document.createElement("div");
-            task.classList.add("task");
-            task.textContent = taskText;
-            tasksContainer.appendChild(task);
-          });
-        });
+document.getElementById("addCardBtn").addEventListener("click", addCard);
+
+function addCard() {
+  const cardName = prompt("Enter card name:");
+  if (!cardName) return;
+
+  const card = document.createElement("div");
+  card.className = "card";
+
+  const header = document.createElement("header");
+  header.textContent = cardName;
+  card.appendChild(header);
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "Add a task and press Enter";
+  input.addEventListener("keydown", addTask);
+  card.appendChild(input);
+
+  const taskList = document.createElement("ul");
+  taskList.addEventListener("dragover", dragOver);
+  taskList.addEventListener("drop", drop);
+  card.appendChild(taskList);
+
+  document.getElementById("board").appendChild(card);
+}
+
+function addTask(event) {
+  if (event.key !== "Enter" || !event.target.value.trim()) return;
+
+  const taskText = event.target.value.trim();
+  const task = document.createElement("li");
+  task.textContent = taskText;
+  task.draggable = true;
+  task.addEventListener("dragstart", dragStart);
+  task.addEventListener("dragend", dragEnd);
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.className = "cancel-task";
+  cancelBtn.addEventListener("click", () => task.remove());
+  task.appendChild(cancelBtn);
+
+  event.target.nextElementSibling.appendChild(task);
+  event.target.value = "";
+}
+
+function dragStart(event) {
+  event.dataTransfer.setData("text/plain", event.target.id);
+  setTimeout(() => {
+    event.target.classList.add("dragging");
+  }, 0);
+}
+
+function dragEnd(event) {
+  event.target.classList.remove("dragging");
+}
+
+function dragOver(event) {
+  event.preventDefault();
+  const afterElement = getDragAfterElement(event.target, event.clientY);
+  const draggable = document.querySelector(".dragging");
+  const taskList = event.target.closest("ul");
+  if (afterElement == null) {
+    taskList.appendChild(draggable);
+  } else {
+    taskList.insertBefore(draggable, afterElement);
+  }
+}
+
+function drop(event) {
+  event.preventDefault();
+  const draggable = document.querySelector(".dragging");
+  draggable.classList.remove("dragging");
+}
+
+function getDragAfterElement(container, y) {
+  const draggableElements = [
+    ...container.querySelectorAll("li:not(.dragging)"),
+  ];
+  return draggableElements.reduce(
+    (closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
       }
-    }
-    // Event delegation to handle removing tasks
-    document.querySelector(".board").addEventListener("click", function (e) {
-      if (e.target.classList.contains("task")) {
-        e.target.remove();
-        saveTasks();
-      }
-    });
-  });
+    },
+    { offset: Number.NEGATIVE_INFINITY }
+  ).element;
+}
